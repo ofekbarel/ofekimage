@@ -1,0 +1,53 @@
+def getDockerTag(){
+    def tag = bat script: 'git rev-parse HEAD' , returnStdout:ture
+    return tag 
+
+}
+pipeline{
+        agent any
+
+          environment {
+            Docker_tag = getDockerTag()
+          }
+
+    tools {
+        maven "Maven"
+    }
+
+    stages{
+
+        stage('Git') {
+            steps {
+                // Get some code from a GitHub repository
+                git branch: 'main', changelog: false, poll: false, url: 'https://github.com/ofekbarel/ofekimage'
+            }
+        }
+
+        stage('sonarqube'){
+            steps{
+                script{
+            withSonarQubeEnv('sonarserver') {
+            bat "mvn sonar:sonar"    
+                           }
+            
+            bat "mvn clean install"          
+                }
+            }
+
+        }
+
+        stage('docker build image') {
+            steps{
+                script{
+                    bat 'docker build . -t ofekbarel11/ofekimage:Docker_tag'
+                    withCredentials([string(credentialsId: 'dockerpassward', variable: 'dockerpassword')]) {
+                         docker login -u ofekbarel11 -p $dockerpassward
+                            docker push ofekbarel11/ofekimage:Docker_tag
+                    }
+
+                    
+                }
+            }
+        }
+    }
+}
